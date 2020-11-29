@@ -83,6 +83,30 @@ class PredictorMkIII(nn.Module):
 
         return x
 
+class Predictor_DropoutMKII(nn.Module):
+    def __init__(self, p = 0.0, in_features, out):
+        super(Predictor_DropoutMKI, self).__init__()
+        hidden = [10, 10]
+        self.p = p
+        self.l1 = nn.Linear(in_features, hidden[0])
+        self.r1 = nn.ReLU()
+        self.l2 = nn.Linear(hidden[0], hidden[1])
+        self.r2 = nn.ReLU()
+        self.l3 = nn.Linear(hidden[1], out)
+        self.r3 = nn.ReLU()
+
+    def forward(self, x):
+        x = self.l1.forward(x)
+        x = self.r1.forward(x)
+        x = nn.functional.dropout(x, p=self.p, training=true)
+        x = self.l2.forward(x)
+        x = self.r2.forward(x)
+        x = nn.functional.dropout(x, p=self.p, training=true)
+        x = self.l3.forward(x)
+        x = self.r3.forward(x)
+
+        return x
+
 
 def train(model, x_train, y_train, x_val, y_val, epochs=100, lr=0.0001):
     criterion = nn.MSELoss()
