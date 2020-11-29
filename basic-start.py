@@ -8,8 +8,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
+from torch.utils.data import DataLoader
 
-from start import gen_data
+from start import RegData, gen_data
 
 class LinearOne(nn.Module):
     def __init__(self):
@@ -85,7 +86,7 @@ class PredictorMkIII(nn.Module):
 
 def train(model, x_train, y_train, x_val, y_val, epochs=100, lr=0.0001):
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adagrad(model.parameters())
 
     # split = 1
     if torch.cuda.is_available():
@@ -129,10 +130,21 @@ if __name__ == "__main__":
     #credit: https://towardsdatascience.com/linear-regression-with-pytorch-eb6dedead817
 
     # create dummy data for training
+
     num_samples = 15000
-    num_val = 2000
-    x_train, y_train = gen_data(num_samples)
-    x_val, y_val = gen_data(num_val)
+    num_val = 1000
+    dataset = RegData(num_samples)
+    # dataloader = DataLoader(dataset, num_samples, True)
+    # num_val = 5000
+    x, y = gen_data(num_samples)
+    rng = default_rng()
+
+    xy = np.concatenate((x,y), axis=1)
+    rng.shuffle(xy)
+    x, y = xy[:, :-1], xy[:, -1:]
+
+    x_train, y_train = x[:-num_val], y[:-num_val]
+    x_val, y_val = x[-num_val:], y[-num_val:]
 
 
     in_size = x_train.shape[1]
@@ -146,4 +158,6 @@ if __name__ == "__main__":
         model.cuda()
 
     train(model, x_train, y_train, x_val, y_val, epochs=100)
+
+    torch.save(model.state_dict(), "25k-regression")
 

@@ -4,6 +4,7 @@ import numpy as np
 from numpy.random import default_rng
 
 import torch
+from torch.utils.data import Dataset
 
 def time_to_cross(stopwalk_dist, direction, speed, red_clothes):
     """
@@ -25,12 +26,21 @@ def time_to_cross(stopwalk_dist, direction, speed, red_clothes):
 
     return time_to_cross
 
-# courtesy of https://stackoverflow.com/a/42874726
 def get_one_hot(targets, nb_classes):
+    """
+        Converts index or array of indices to one-hot vectors
+
+        courtesy of https://stackoverflow.com/a/42874726
+    """
     res = np.eye(nb_classes)[np.array(targets).reshape(-1)]
     return res.reshape(list(targets.shape)+[nb_classes])
 
 def gen_data_linear(num_samples):
+    """
+        Used for verifying that training loop worked
+
+        cite: https://towardsdatascience.com/linear-regression-with-pytorch-eb6dedead817
+    """
     x_values = [i for i in range(num_samples)]
     x_train = np.array(x_values, dtype=np.float32)
     x_train = x_train.reshape(-1, 1)
@@ -41,16 +51,15 @@ def gen_data_linear(num_samples):
 
     return x_train, y_train
 
-# def print_some_data(cols, samples, labels, n=5):
-#     for i in range(n):
-#         print(f"{cols[0]}:{samples[i][0]}  ")
 
 def gen_data(num_samples):
+    """
+        Returns a tuple of (data, labels) of our synthetically generated data
+    """
     features = ["dist_to_curb", "direction", "speed", "red"]
     label = ["time_to_cross"]
 
     cols = features + label
-    
     gen = default_rng()
 
     # in meters, m/s
@@ -76,10 +85,9 @@ def gen_data(num_samples):
     for i in range(num_samples):
         labels[i] = (time_to_cross(distances[i], directions[i], speeds[i], red[i]))
 
-
     labels = labels.astype(np.single)
     samples = np.concatenate((distances, directions_onehot, speeds, red), axis=1).astype(np.single)
-    print_data = True
+    print_data = False
 
     if print_data:
         for i in range(20):
@@ -88,5 +96,16 @@ def gen_data(num_samples):
     return samples, labels
 
 
-if __name__ == "__main__":
-    data = gen_data()
+class RegData(Dataset):
+    """
+        Pytorch dataset wrapper around our data generator
+    """
+    def __init__(self, num_samples):
+        self.n = num_samples
+        self.data = gen_data(num_samples)
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, idx):
+        return (self.data[0][idx], self.data[1][idx])
