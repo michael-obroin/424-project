@@ -1,0 +1,13 @@
+The python code for our data generation as well as miscellaneous helper functions can be found in data_generation.py,
+and the code for training, testing, and evaluating the neural networks on the data is in networks.py.
+
+Our scripts were tested to run on Python version 3.8.6, and the only library necessary to install explicitly is PyTorch.
+To install pytorch, run the following commands below in a terminal in the project directory,
+then use the link https://pytorch.org/get-started/locally/ to select the version compatible with your system.
+We used the pip installation for version 1.7.0 with CUDA 11, seen below
+
+python3 -m venv venv
+source ./venv/bin/activate
+
+# depends on your system
+python3 -m pip install torch==1.7.0+cu110 torchvision==0.8.1+cu110 torchaudio===0.7.0 -f https://download.pytorch.org/whl/torch_stable.html
