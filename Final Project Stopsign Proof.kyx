@@ -1,0 +1,48 @@
+﻿/* Exported from KeYmaera X v4.9.0 */
+
+Theorem "Final Project Stopsign"
+
+Definitions
+    Real CrossTime;  
+    Real EstimatedUncertainty;  
+    Real CrossWalkPos;
+    Real B;
+End.
+
+ProgramVariables
+    Real carPos;
+    Real carVel;
+    Real carAcc;
+    Real t;
+End.
+
+Problem
+    (B > 0 & carVel > 0 & carPos = 0 & CrossWalkPos > 0 & t = 0 & EstimatedUncertainty < CrossTime & EstimatedUncertainty >= 0 &
+    (carPos + carVel*(CrossTime - EstimatedUncertainty) > CrossWalkPos | 
+    (1/2)*carVel^2*(1/B) < CrossWalkPos))
+    ->
+    [
+        {carAcc := *; ?(carAcc < 0 & carAcc >= -B & 
+        (carPos + carVel*(CrossTime - EstimatedUncertainty) + (1/2)*carAcc*(CrossTime - EstimatedUncertainty)^2 > CrossWalkPos| 
+        (-1/2)*carVel^2*(1/carAcc) < CrossWalkPos));}
+        {carPos' = carVel, carVel' = carAcc, t' = 1 & carVel >= 0}
+    ]
+    ((t < CrossTime + EstimatedUncertainty & t > CrossTime - EstimatedUncertainty) -> (carPos > CrossWalkPos | carPos < CrossWalkPos))
+    
+  
+End.
+
+Tactic "Final Project Stopsign: Proof"
+prop ; <(
+  chase('R) ; allR('R) ; prop ; <(
+    auto,
+    auto
+    ),
+  chase('R) ; allR('R) ; prop ; <(
+    auto,
+    auto
+    )
+  )
+End.
+
+End.
