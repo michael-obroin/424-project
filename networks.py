@@ -107,10 +107,14 @@ class Predictor_DropoutMKII(nn.Module):
 
 
 def train(model, x_train, y_train, x_val, y_val, epochs=100, lr=0.0001):
+    """
+        Training loop for the provided model on the data. Reports training and validation
+        loss per epoch.
+    """
+
     criterion = nn.MSELoss()
     optimizer = optim.Adagrad(model.parameters())
 
-    # split = 1
     if torch.cuda.is_available():
         inputs = Variable(torch.from_numpy(x_train).cuda())
         labels = Variable(torch.from_numpy(y_train).cuda())
@@ -132,8 +136,6 @@ def train(model, x_train, y_train, x_val, y_val, epochs=100, lr=0.0001):
 
             outputs = model(x)
             loss = criterion(outputs, y)
-            # if epoch > 10 and loss >= 10:
-            #     print("bad")
             loss.backward()
             epoch_loss += loss.item()
             optimizer.step()
@@ -151,20 +153,18 @@ def train(model, x_train, y_train, x_val, y_val, epochs=100, lr=0.0001):
 if __name__ == "__main__":
     #credit: https://towardsdatascience.com/linear-regression-with-pytorch-eb6dedead817
 
-    # create dummy data for training
-
+    # Total number of samples to generate, and how many of them we use as validation
     num_samples = 15000
     num_val = 1000
-    dataset = RegData(num_samples)
-    # dataloader = DataLoader(dataset, num_samples, True)
-    # num_val = 5000
-    x, y = gen_data(num_samples)
-    rng = default_rng()
 
+    # Generate synthetic data for training our network
+    x, y = gen_data(num_samples)
+
+    # Shuffle the data to avoid bias
     xy = np.concatenate((x,y), axis=1)
+    rng = default_rng()
     rng.shuffle(xy)
     x, y = xy[:, :-1], xy[:, -1:]
-
     x_train, y_train = x[:-num_val], y[:-num_val]
     x_val, y_val = x[-num_val:], y[-num_val:]
 
@@ -172,9 +172,6 @@ if __name__ == "__main__":
     in_size = x_train.shape[1]
     hidden = 50
     out = 1
-    # model = Predictor(in_size, hidden, out)outputs
-
-    # model = PredictorMkII(in_size, 50, 1)
     model = Predictor_DropoutMKII(in_size, 1, p=0.25)
 
     if torch.cuda.is_available():
@@ -182,5 +179,5 @@ if __name__ == "__main__":
 
     train(model, x_train, y_train, x_val, y_val, epochs=100)
 
-    torch.save(model.state_dict(), "25k-regression")
+    # torch.save(model.state_dict(), "25k-regression")
 
