@@ -1,8 +1,6 @@
 import numpy as np
 from numpy.random import default_rng
 
-import matplotlib.pyplot as plt
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,7 +8,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
-from start import RegData, gen_data
+from data_generation import RegData, gen_data
 
 class LinearOne(nn.Module):
     def __init__(self):
@@ -84,8 +82,8 @@ class PredictorMkIII(nn.Module):
         return x
 
 class Predictor_DropoutMKII(nn.Module):
-    def __init__(self, p = 0.0, in_features, out):
-        super(Predictor_DropoutMKI, self).__init__()
+    def __init__(self, in_features, out, p=0.0):
+        super(Predictor_DropoutMKII, self).__init__()
         hidden = [10, 10]
         self.p = p
         self.l1 = nn.Linear(in_features, hidden[0])
@@ -98,10 +96,10 @@ class Predictor_DropoutMKII(nn.Module):
     def forward(self, x):
         x = self.l1.forward(x)
         x = self.r1.forward(x)
-        x = nn.functional.dropout(x, p=self.p, training=true)
+        x = nn.functional.dropout(x, p=self.p, training=True)
         x = self.l2.forward(x)
         x = self.r2.forward(x)
-        x = nn.functional.dropout(x, p=self.p, training=true)
+        x = nn.functional.dropout(x, p=self.p, training=True)
         x = self.l3.forward(x)
         x = self.r3.forward(x)
 
@@ -176,7 +174,8 @@ if __name__ == "__main__":
     out = 1
     # model = Predictor(in_size, hidden, out)outputs
 
-    model = PredictorMkII(in_size, 50, 1)
+    # model = PredictorMkII(in_size, 50, 1)
+    model = Predictor_DropoutMKII(in_size, 1, p=0.25)
 
     if torch.cuda.is_available():
         model.cuda()
