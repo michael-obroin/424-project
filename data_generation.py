@@ -1,3 +1,4 @@
+import os
 import csv
 
 import numpy as np
@@ -5,6 +6,8 @@ from numpy.random import default_rng
 
 import torch
 from torch.utils.data import Dataset
+
+data_dir = os.path.join(os.curdir, "data")
 
 def time_to_cross(stopwalk_dist, direction, speed, red_clothes):
     """
@@ -96,16 +99,40 @@ def gen_data(num_samples):
     return samples, labels
 
 
+def get_datasets(num_samples, num_val, regen_data=False):
+    if regen_data:
+        x_train, y_train = gen_data(num_samples)
+        x_val, y_val = gen_data(num_val)
+
+        np.save(os.path.join(data_dir, "x-"+str(num_samples)+".npy"), x_train)
+        np.load(os.path.join(data_dir, "y-"+str(num_samples)+".npy"), y_train)
+        np.load(os.path.join(data_dir, "x-"+str(num_samples)+".npy"), x_val)
+        np.load(os.path.join(data_dir, "y-"+str(num_samples)+".npy"), y_val)
+    else:
+        x_train = np.load(os.path.join(data_dir, "x-"+str(num_samples)+".npy"))
+        y_train = np.load(os.path.join(data_dir, "y-"+str(num_samples)+".npy"))
+        x_val = np.load(os.path.join(data_dir, "x-"+str(num_samples)+".npy"))
+        y_val = np.load(os.path.join(data_dir, "y-"+str(num_samples)+".npy"))
+
+    train_set = RegData(num_samples, x_train, y_train)
+    val_set = RegData(num_val, x_val, y_val)
+
+    return train_set, val_set
+
+
 class RegData(Dataset):
     """
         Pytorch dataset wrapper around our data generator
     """
-    def __init__(self, num_samples):
+    def __init__(self, num_samples, x=None, y=None):
         self.n = num_samples
-        self.data = gen_data(num_samples)
+        if x is None or y is None:
+            self.samples, self.labels = gen_data(num_samples)
+        else:
+            self.samples, self.labels = x, y
 
     def __len__(self):
         return self.n
 
     def __getitem__(self, idx):
-        return (self.data[0][idx], self.data[1][idx])
+        return self.samples[idx], self.labels[idx]
