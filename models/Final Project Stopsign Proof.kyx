@@ -1,0 +1,62 @@
+﻿/* Exported from KeYmaera X v4.9.0 */
+
+Theorem "Final Project Stopsign"
+
+Definitions
+/*The time the ML model predicts the pedestrian will cross the road*/
+    Real CrossTime; 
+/*The uncertainty in the CrossTime prediction (ie could cross anywhere in (CrossTime-EstimatedUncertainty,CrossTime-EstimatedUncertainty))*/
+    Real EstimatedUncertainty; 
+/*position of the crosswalk*/
+    Real CrossWalkPos;
+/*maximum breaking force*/
+    Real B;
+End.
+
+ProgramVariables
+    Real carPos;
+    Real carVel;
+    Real carAcc;
+    Real t;
+End.
+
+Problem
+    (B > 0 & carVel > 0 & carPos = 0 & CrossWalkPos > 0 & t = 0 & 
+    EstimatedUncertainty < CrossTime & EstimatedUncertainty >= 0 &
+    /*final precondition states that car can either safely continue driving
+    and be past the crosswalk before the pedestrian could enter it or the car
+    could stop fully before the crosswalk*/
+    (carPos + carVel*(CrossTime - EstimatedUncertainty) > CrossWalkPos | 
+    (1/2)*carVel^2*(1/B) < CrossWalkPos))
+    ->
+    [
+        /*assign a random accleration and check if it is in correct bounds
+        and is safe*/
+        {carAcc := *; ?(carAcc < 0 & carAcc >= -B & 
+        (carPos + carVel*(CrossTime - EstimatedUncertainty) + (1/2)*carAcc*(CrossTime - EstimatedUncertainty)^2 > CrossWalkPos| 
+        (-1/2)*carVel^2*(1/carAcc) < CrossWalkPos));}
+        
+        
+        {carPos' = carVel, carVel' = carAcc, t' = 1 & carVel >= 0}
+    ]
+    /*checks that the car is never at CrossWalkPos at a time where the 
+    pedestrian could be crossing the road*/
+    ((t < CrossTime + EstimatedUncertainty & t > CrossTime - EstimatedUncertainty) -> (carPos > CrossWalkPos | carPos < CrossWalkPos))
+    
+  
+End.
+
+Tactic "Final Project Stopsign: Proof"
+prop ; <(
+  chase('R) ; allR('R) ; prop ; <(
+    auto,
+    auto
+    ),
+  chase('R) ; allR('R) ; prop ; <(
+    auto,
+    auto
+    )
+  )
+End.
+
+End.
