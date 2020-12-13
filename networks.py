@@ -1,3 +1,5 @@
+import csv
+
 import numpy as np
 from numpy.random import default_rng
 
@@ -8,7 +10,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
-from data_generation import get_datasets
+from data_generation import get_dataset, gen_data
 
 def lin_relu(weights):
     layers = []
@@ -32,13 +34,15 @@ class BasicLayer(nn.Module):
     def __init__(self, n):
         super(BasicLayer, self).__init__()
         self.l = nn.Sequential(
-            nn.Linear(7, 7),
+            nn.Linear(7, n),
             nn.ReLU(),
-            nn.Linear(7, 1)
+            nn.Linear(n, 1)
         )
 
     def forward(self, x):
-        return self.l.forward(x)
+        x = self.l.forward(x)
+        x = nn.functional.dropout(x, p=0.05)
+        return x
 
 class Predictor_DropoutMKII(nn.Module):
     def __init__(self, in_features, out, p=0.0):
@@ -64,7 +68,34 @@ class Predictor_DropoutMKII(nn.Module):
 
         return x
 
-def train_loader(model, dataloader, dataloader_val, epochs=100, lr=0.0001):
+class Ensemble:
+    def __init__(self, seed):
+        self.models = get_ensemble(seed)
+
+    def forward(self, x):
+        preds = [m(x) for m in self.models]
+
+        return preds, np.mean(preds), np.median(preds), np.std(preds)
+
+
+def get_ensemble(seed):
+    models = []
+    weights = [7, 50, 1]
+    for i in range(num_ensemble):
+        model = get_model(f"./models/25k-{i+1}-seeded.pt", PredictorMkIII, [weights])
+        models.append(model)
+
+    return models
+
+
+def get_model(filename, model_class, params):
+    model = model_class(*params)
+    model.load_state_dict(torch.load(filename))
+
+    return model
+
+
+def train_loader(model, dataloader, dataloader_val, epochs=100):
     """
         Training loop for the provided model on the data. Reports training and validation
         loss per epoch.
@@ -76,7 +107,7 @@ def train_loader(model, dataloader, dataloader_val, epochs=100, lr=0.0001):
     num_data, num_val = len(dataloader), len(dataloader_val)
 
     for epoch in range(1, epochs + 1):
-        epoch_loss = 0
+        train_loss = 0
 
         for x, y in dataloader:
             optimizer.zero_grad()
@@ -84,7 +115,7 @@ def train_loader(model, dataloader, dataloader_val, epochs=100, lr=0.0001):
             outputs = model(x)
             loss = criterion(outputs, y)
             loss.backward()
-            epoch_loss += loss.item()
+            train_loss += loss.item()
             optimizer.step()
 
         with torch.no_grad():
@@ -93,90 +124,173 @@ def train_loader(model, dataloader, dataloader_val, epochs=100, lr=0.0001):
                 val = model(x)
                 loss = criterion(val, y)
                 val_loss += loss.item()
-
-        # print('epoch {}, train_loss {}'.format(epoch, epoch_loss/len(dataloader)))
-        print('epoch {}, train_loss {}, val_loss {}'.format(epoch, epoch_loss/num_data, val_loss/num_val))
-
-    if epoch_loss/len(dataloader) < 20:
-        torch.save(model.state_dict(), "25k-regression-good.pt")
+        
+        train_loss /= num_data
+        val_loss /= num_val
+        print(f'{epoch=}, {train_loss=:0.3f}, {val_loss=:0.3f}')
 
 
-def train(model, x_train, y_train, x_val, y_val, dataloader, epochs=100, lr=0.0001):
-    """
-        Training loop for the provided model on the data. Reports training and validation
-        loss per epoch.
-    """
+def test_model(model, test_data):
+    # cols = []
+    with torch.no_grad():
+        val_loss = 0
+        x, y = test_data
+        x, y = Variable(torch.from_numpy(x)), Variable(torch.from_numpy(y))
+        for i in range(x.shape[0]):
+            inputs, label = x[i], y[i]
+            val = model(inputs)
 
-    criterion = nn.MSELoss()
-    # optimizer = optim.Adagrad(model.parameters())
+            print(inputs, "true label: ", label, "predicted label: ", val)
 
-    if torch.cuda.is_available():
-        inputs = Variable(torch.from_numpy(x_train).cuda())
-        labels = Variable(torch.from_numpy(y_train).cuda())
-        inputs_val = Variable(torch.from_numpy(x_val).cuda())
-        labels_val = Variable(torch.from_numpy(y_val).cuda())
-    else:
-        inputs = Variable(torch.from_numpy(x_train))
-        labels = Variable(torch.from_numpy(y_train))
-        inputs_val = Variable(torch.from_numpy(x_val))
-        labels_val = Variable(torch.from_numpy(y_val))
 
-    l = len(inputs)
-    batch_size = 4
+def test_uncertainty():
+    weights = [7, 50, 1]
+    num_models = 5
 
-    for epoch in range(1, epochs + 1):
-        epoch_loss = 0
+    num_test_examples = 1500
+    # test_seed = 15824
+    print(f"{num_test_examples=}, {test_seed=}")
+    test_dataset = get_dataset(num_test_examples, regen_data=True, seed=num_test_examples)
+    test_loader = DataLoader(test_dataset)
 
-        # for x, y in zip(inputs, labels):
-        for x, y in dataloader:
-        # for i in range(l):
-            # x, y = x_train[i:i+batch_size, :], y_train[i:i+batch_size, :]
-            # x, y = x_train[i], y_train[i]
+    ensemble = Ensemble(train_seed)
 
-            optimizer.zero_grad()
+    num_simulations = 40
+    dropout_model = get_model(f"./models/dropout-50-{train_seed}.pt", BasicLayer, [50])
 
-            outputs = model(x)
-            loss = criterion(outputs, y)
-            loss.backward()
-            epoch_loss += loss.item()
-            optimizer.step()
+    cols = ["stopwalk_dist",    #0
+        "down street",          #1 
+        "towards street",       #2
+        "away street",          #3
+        "up street",            #4
+        "speed",                #5
+        "red",                  #6
+        "true label",           #7
+        "ens mean",             #8
+        "ens std",              #9
+        "dropout mean",         #10
+        "dropout std"           #11
+        ]
 
-        with torch.no_grad():
-            val_loss = 0
-            for x, y in zip(inputs_val, labels_val):
-                val = model(x)
-                loss = criterion(val, y)
-                val_loss += loss.item()
+    lines = []
+    with torch.no_grad():
+        for x, y in test_loader:
+            preds, ens_mean, ens_med, ens_std = ensemble.forward(x)
 
-        # print('epoch {}, train_loss {}'.format(epoch, epoch_loss/x_train.shape[0]))
-        print('epoch {}, train_loss {}, val_loss {}'.format(epoch, epoch_loss/x_train.shape[0], val_loss/x_val.shape[0]))
+            
+            dropout_preds = [dropout_model(x) for _ in range(num_simulations)]
+            dropout_mean = np.mean(dropout_preds)
+            dropout_med = np.median(dropout_preds)
+            dropout_std = np.std(dropout_preds)
 
-if __name__ == "__main__":
-    #credit: https://towardsdatascience.com/linear-regression-with-pytorch-eb6dedead817
+            line = [x.numpy()[0,0]] + [int(x.numpy()[0, i]) for i in [1,2,3,4]] + [x.numpy()[0, 5], + int(x.numpy()[0,6])]
+            
+            line.append(y.item())
+            line.append(ens_mean)
+            line.append(ens_std)
+            line.append(dropout_mean)
+            line.append(dropout_std)
 
-    # Total number of samples to generate, and how many of them we use as validation
+            lines.append(line)
+
+    np_lines = np.array(lines)
+    print(f"avg ensemble std dev {np.mean(np_lines[:, 9]):.3f}")
+    print(f"ensemble MSE {np.mean(np_lines[:, 7] - np_lines[:, 8]):.3f}")
+    print(f"avg dropout std dev {np.mean(np_lines[:, 10]):.3f}")
+    print(f"droppout MSE {np.mean(np_lines[:, 7] - np_lines[:, 10]):.3f}")
+
+    print()
+    percentages = []
+    print("percentage of predictions within x standard deviations of true answer")
+    for i in range(1, 4):
+        true_label = np_lines[:, 7]
+
+        ens_pred = np_lines[:, 8]
+        ens_std = np_lines[:, 9] * i
+
+        dropout_pred = np_lines[:, 10]
+        dropout_std = np_lines[:, 11] * i
+
+        in_bounds_ens = (ens_pred - ens_std <= true_label) * (true_label <= ens_pred + ens_std)
+        in_bounds_drop = (dropout_pred - dropout_std <= true_label) * (true_label <= dropout_pred + dropout_std)
+
+        percent_ens = np.sum(in_bounds_ens) / num_test_examples
+        percent_drop = np.sum(in_bounds_drop) / num_test_examples
+
+        print(f"{i} standard deviations")
+        print(f"ensemble: {percent_ens*100:2.2f}%\t dropout: {percent_drop*100:2.2f}%\n")
+
+        percentages.append( (percent_ens, percent_drop) )
+
+    # print(percentages)
+
+    write = False
+    if write:
+        with open("experiment-results.csv", "w") as f:
+            w = csv.writer(f)
+            w.writerow(cols)
+            for line in lines:
+                w.writerow(line)
+
+
+def make_and_train():
     num_samples = 25000
     num_val = 5000
 
-    print(f"{num_samples=}, {num_val=}")
+    dropout_epochs = 60
+    normal_epochs = 100
+
 
     num_features = 7
-    hidden = 50
+    num_neurons = 50
     out = 1
 
-    train_set, val_set = get_datasets(num_samples, num_val)
+    regen = False
+    
+    print(f"{num_samples=}, {num_val=}, {regen=}")
+    print(f"{train_seed=}, {val_seed=}")
+
+    train_set = get_dataset(num_samples, regen_data=regen, seed=train_seed)
+    val_set = get_dataset(num_val, regen_data=regen, seed=val_seed)
 
     dataloader = DataLoader(train_set, batch_size=8, shuffle=True)
     dataloader_val = DataLoader(val_set)
 
-    weights = [num_features, 10, 1]
-    model = PredictorMkIII(weights)
+    weights = [num_features, num_neurons, out]
 
-    if torch.cuda.is_available():
-        model.cuda()
+    train_dropout = False
+    train_ensemble = True
 
-    print(f"training {model}")
-    train_loader(model, dataloader, dataloader_val, epochs=200)
+    if train_dropout:
+        basic = BasicLayer(50)
+        print("training dropout")
+        train_loader(basic, dataloader, dataloader_val, epochs=dropout_epochs)
+        torch.save(basic.state_dict(), f"./models/dropout-{num_neurons}-{train_seed}.pt")
 
-    torch.save(model.state_dict(), "static-data.pt")
+    if train_ensemble:
+        for i in range(num_ensemble):
+            model = PredictorMkIII(weights)
+
+            # cuda is broken on my machine at the moment
+            # if torch.cuda.is_available():
+            #     model.cuda()
+
+            print(f"training ensemble model {i+1}")
+            train_loader(model, dataloader, dataloader_val, epochs=normal_epochs)
+
+            # test_data = gen_data(10)
+            # test_model(model, test_data)
+
+            torch.save(model.state_dict(), f"./models/25k-{i+1}-{train_seed}.pt")
+
+
+if __name__ == "__main__":
+    train_seed = 15424
+    val_seed = 15624
+    test_seed = 15824
+
+    num_ensemble = 8
+
+    make_and_train()
+    test_uncertainty()
 
