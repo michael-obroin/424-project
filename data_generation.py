@@ -13,11 +13,13 @@ def time_to_cross(stopwalk_dist, direction, speed, red_clothes):
     """
         Gives time until a pedestrian with these attributes will cross the street
     """
-    scale = 2
-    epsilon = 0.00001
+    scale = 1
+    # epsilon = 0.00001
 
     #doesn't really need to make sense
-    time_to_cross = scale * stopwalk_dist / (speed + epsilon)
+    if speed == 0:
+        speed = 0.1
+    time_to_cross = scale * stopwalk_dist / speed
 
     if direction == 1:
         time_to_cross /= 2
@@ -55,7 +57,7 @@ def gen_data_linear(num_samples):
     return x_train, y_train
 
 
-def gen_data(num_samples):
+def gen_data(num_samples, seed, print_sample=False):
     """
         Returns a tuple of (data, labels) of our synthetically generated data
     """
@@ -63,11 +65,13 @@ def gen_data(num_samples):
     label = ["time_to_cross"]
 
     cols = features + label
-    gen = default_rng()
+    gen = default_rng(seed)
 
     # in meters, m/s
-    max_dist = 4
-    max_speed = 1
+    max_dist = 3
+    max_speed = 2
+    prob_red = .2
+    shape = (num_samples, 1)
 
     # one hot encoding of cardinal direction of pedestrian
     # 0 = facing down street, away from us
@@ -78,58 +82,54 @@ def gen_data(num_samples):
     directions = gen.integers(0, num_dirs, num_samples)
     directions_onehot = get_one_hot(directions, num_dirs)
 
-    distances = gen.beta(2, 2, (num_samples, 1)) * max_dist
-    speeds = gen.beta(2, 2, (num_samples, 1)) * max_speed
+    distances = gen.beta(2, 2, shape) * max_dist
+    speeds = gen.beta(2, 2, shape) * max_speed
 
-    prob_red = .2
-    red = gen.random((num_samples, 1)) >= (1 - prob_red)
+    red = gen.random(shape) >= (1 - prob_red)
 
-    labels = np.empty((num_samples, 1))
+    labels = np.empty(shape)
     for i in range(num_samples):
         labels[i] = (time_to_cross(distances[i], directions[i], speeds[i], red[i]))
 
     labels = labels.astype(np.single)
     samples = np.concatenate((distances, directions_onehot, speeds, red), axis=1).astype(np.single)
-    print_data = False
+    # print_data = True
 
-    if print_data:
-        for i in range(20):
+    if print_sample:
+        for i in range(min(20, num_samples)):
             print(f"{cols[0]}:{distances[i]}  {cols[1]}:{directions[i]}  {cols[2]}:{speeds[i]} {cols[3]}:{red[i]}  {cols[4]}:{labels[i]}")
     
     return samples, labels
 
 
-def get_datasets(num_samples, num_val, regen_data=False):
+def get_dataset(size, regen_data=False, seed=15424):
+    """
+        Returns the dataset from data/ of the appropriate size, optionally
+        generates new data and saving before returning.
+    """
     if regen_data:
-        x_train, y_train = gen_data(num_samples)
-        x_val, y_val = gen_data(num_val)
+        x, y = gen_data(size, seed)
 
-        np.save(os.path.join(data_dir, "x-"+str(num_samples)+".npy"), x_train)
-        np.load(os.path.join(data_dir, "y-"+str(num_samples)+".npy"), y_train)
-        np.load(os.path.join(data_dir, "x-"+str(num_samples)+".npy"), x_val)
-        np.load(os.path.join(data_dir, "y-"+str(num_samples)+".npy"), y_val)
+        np.save(os.path.join(data_dir, "x-"+str(size)+"_"+str(seed)+".npy"), x)
+        np.save(os.path.join(data_dir, "y-"+str(size)+"_"+str(seed)+".npy"), y)
     else:
-        x_train = np.load(os.path.join(data_dir, "x-"+str(num_samples)+".npy"))
-        y_train = np.load(os.path.join(data_dir, "y-"+str(num_samples)+".npy"))
-        x_val = np.load(os.path.join(data_dir, "x-"+str(num_samples)+".npy"))
-        y_val = np.load(os.path.join(data_dir, "y-"+str(num_samples)+".npy"))
+        try:
+            x = np.load(os.path.join(data_dir, "x-"+str(size)+"_"+str(seed)+".npy"))
+            y = np.load(os.path.join(data_dir, "y-"+str(size)+"_"+str(seed)+".npy"))
+        except:
+            print("getting data failed")
+            return get_dataset(size, regen_data=True, seed=seed)
 
-    train_set = RegData(num_samples, x_train, y_train)
-    val_set = RegData(num_val, x_val, y_val)
-
-    return train_set, val_set
+    return RegData(size, x, y)
 
 
 class RegData(Dataset):
     """
         Pytorch dataset wrapper around our data generator
     """
-    def __init__(self, num_samples, x=None, y=None):
+    def __init__(self, num_samples, x, y):
         self.n = num_samples
-        if x is None or y is None:
-            self.samples, self.labels = gen_data(num_samples)
-        else:
-            self.samples, self.labels = x, y
+        self.samples, self.labels = x, y
 
     def __len__(self):
         return self.n
