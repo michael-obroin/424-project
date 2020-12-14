@@ -82,7 +82,7 @@ def get_ensemble(seed):
     models = []
     weights = [7, 50, 1]
     for i in range(num_ensemble):
-        model = get_model(f"./models/25k-{i+1}-seeded.pt", PredictorMkIII, [weights])
+        model = get_model(f"./models/25k-{i+1}-{train_seed}.pt", PredictorMkIII, [weights])
         models.append(model)
 
     return models
@@ -148,9 +148,9 @@ def test_uncertainty():
     num_models = 5
 
     num_test_examples = 1500
-    # test_seed = 15824
+    # num_test_examples = 7000
     print(f"{num_test_examples=}, {test_seed=}")
-    test_dataset = get_dataset(num_test_examples, regen_data=True, seed=num_test_examples)
+    test_dataset = get_dataset(num_test_examples, regen_data=True, seed=test_seed)
     test_loader = DataLoader(test_dataset)
 
     ensemble = Ensemble(train_seed)
@@ -197,19 +197,20 @@ def test_uncertainty():
     print(f"avg ensemble std dev {np.mean(np_lines[:, 9]):.3f}")
     print(f"ensemble MSE {np.mean(np_lines[:, 7] - np_lines[:, 8]):.3f}")
     print(f"avg dropout std dev {np.mean(np_lines[:, 10]):.3f}")
-    print(f"droppout MSE {np.mean(np_lines[:, 7] - np_lines[:, 10]):.3f}")
+    print(f"dropout MSE {np.mean(np_lines[:, 7] - np_lines[:, 10]):.3f}")
 
     print()
     percentages = []
+    num_sigmas = 5
     print("percentage of predictions within x standard deviations of true answer")
-    for i in range(1, 4):
+    for i in range(num_sigmas):
         true_label = np_lines[:, 7]
 
         ens_pred = np_lines[:, 8]
-        ens_std = np_lines[:, 9] * i
+        ens_std = np_lines[:, 9] * (i+1)
 
         dropout_pred = np_lines[:, 10]
-        dropout_std = np_lines[:, 11] * i
+        dropout_std = np_lines[:, 11] * (i+1)
 
         in_bounds_ens = (ens_pred - ens_std <= true_label) * (true_label <= ens_pred + ens_std)
         in_bounds_drop = (dropout_pred - dropout_std <= true_label) * (true_label <= dropout_pred + dropout_std)
@@ -217,12 +218,10 @@ def test_uncertainty():
         percent_ens = np.sum(in_bounds_ens) / num_test_examples
         percent_drop = np.sum(in_bounds_drop) / num_test_examples
 
-        print(f"{i} standard deviations")
+        print(f"{i+1} standard deviations")
         print(f"ensemble: {percent_ens*100:2.2f}%\t dropout: {percent_drop*100:2.2f}%\n")
 
         percentages.append( (percent_ens, percent_drop) )
-
-    # print(percentages)
 
     write = False
     if write:
@@ -246,7 +245,7 @@ def make_and_train():
     out = 1
 
     regen = False
-    
+
     print(f"{num_samples=}, {num_val=}, {regen=}")
     print(f"{train_seed=}, {val_seed=}")
 
@@ -269,6 +268,7 @@ def make_and_train():
 
     if train_ensemble:
         for i in range(num_ensemble):
+        # for i in [5]:
             model = PredictorMkIII(weights)
 
             # cuda is broken on my machine at the moment
@@ -277,9 +277,6 @@ def make_and_train():
 
             print(f"training ensemble model {i+1}")
             train_loader(model, dataloader, dataloader_val, epochs=normal_epochs)
-
-            # test_data = gen_data(10)
-            # test_model(model, test_data)
 
             torch.save(model.state_dict(), f"./models/25k-{i+1}-{train_seed}.pt")
 
@@ -291,6 +288,6 @@ if __name__ == "__main__":
 
     num_ensemble = 8
 
-    make_and_train()
+    # make_and_train()
     test_uncertainty()
 
