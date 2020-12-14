@@ -40,7 +40,8 @@ the pedestrian could enter the crosswalk*/
 the range [CrossTime - EstimatedUncertainty, CrossTime + EstimatedUncertainty]*/
     Bool pedVelInBounds(Real pedPosY) <->
     (pedVel >= -pedPosY/(CrossTime + EstimatedUncertainty) &
-    pedVel <= -pedPosY/(CrossTime - EstimatedUncertainty));
+    (pedVel <= -pedPosY/(CrossTime - EstimatedUncertainty) | 
+    EstimatedUncertainty >= CrossTime));
     
 /*Ensures positive time range*/
     Bool validEstimatedUncertainty() <-> 
@@ -98,16 +99,16 @@ Problem
 End.
 
 Tactic "Final Project Stopsign 2d with buffer: Proof"
-expandAllDefs ; prop ; <(
-  chase('R) ; andR(1) ; <(
-    allR(1) ; prop ; expandAllDefs ; hideL(-11=="carVel*(CrossTime()-EstimatedUncertainty()-(pedSize()+carSize())/pedVel())>pedPosX()+carSize()+pedSize()") ; auto,
-    prop ; auto
-    ),
-  chase('R) ; andR(1) ; <(
-    allR(1) ; prop ; auto,
-    prop ; auto
-    )
-  )
+prop ; <(
+chase('R) ; andR(1) ; <(
+allR(1) ; prop ; expandAllDefs ; hideL(-12=="carVel*(CrossTime()-EstimatedUncertainty()-(pedSize()+carSize())/pedVel())>pedPosX()+carSize()+pedSize()") ; auto, 
+  expandAllDefs ; prop ; auto
+), 
+chase('R) ; andR(1) ; <(
+allR(1) ; prop ; expandAllDefs ; auto, 
+  prop ; expandAllDefs ; auto
+)
+)
 End.
 
 End.
