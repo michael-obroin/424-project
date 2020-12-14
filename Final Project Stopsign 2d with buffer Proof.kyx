@@ -5,19 +5,59 @@ Theorem "Final Project Stopsign 2d with buffer"
 Definitions
 /*The time the ML model predicts the pedestrian will cross the road*/
     Real CrossTime; 
-/*The uncertainty in the CrossTime prediction (ie could cross anywhere in (CrossTime-EstimatedUncertainty,CrossTime-EstimatedUncertainty))*/
+    
+/*The uncertainty in the CrossTime prediction (ie could cross anywhere in 
+ (CrossTime-EstimatedUncertainty,CrossTime-EstimatedUncertainty))*/
     Real EstimatedUncertainty; 
+    
 /*maximum breaking force*/
     Real B;
-/*Car and pedestrian only move along x, y axis respectivly thus y and x positons are constant*/
+    
+/*Car and pedestrian only move along x, y axis respectivly 
+thus y and x positons are constant*/
     Real carPosY;
     Real pedPosX;
     
-/*Car and pedestrian modeled as squares with 2*carSize = width of car = length of car and similar for pedestrian*/
+/*Car and pedestrian modeled as squares with 
+2*carSize = width of car = length of car and similar for pedestrian*/
     Real carSize;
     Real pedSize;
     
     Real pedVel;
+    
+/*Car can safely stop before reaching a point where it could hit 
+the pedestrian if they enter the crosswalk*/
+    Bool canStop(Real A, Real carVel) <-> 
+    ((-1/2)*carVel^2*(1/A) < pedPosX - carSize - pedSize);
+    
+/*Car can safely travel past the crosswalk region before the first moment
+the pedestrian could enter the crosswalk*/
+    Bool canPassSafely(Real carVel) <-> 
+    (carVel*(CrossTime - EstimatedUncertainty - ((pedSize + carSize)/pedVel)) 
+    > pedPosX + carSize + pedSize);
+    
+/*Pedestrian velocity is such that it enters the crosswalk sometime in
+the range [CrossTime - EstimatedUncertainty, CrossTime + EstimatedUncertainty]*/
+    Bool pedVelInBounds(Real pedPosY) <->
+    (pedVel >= -pedPosY/(CrossTime + EstimatedUncertainty) &
+    pedVel <= -pedPosY/(CrossTime - EstimatedUncertainty));
+    
+/*Ensures positive time range*/
+    Bool validEstimatedUncertainty() <-> 
+    (EstimatedUncertainty < CrossTime & EstimatedUncertainty >= 0);
+    
+/*Car and pedestrain not intersecting at start and pedestrain starts 
+fully lower and to the right of car*/
+    Bool validStartingPosition(Real carPosX, Real pedPosY) <->
+    (carPosX + carSize <= pedPosX - pedSize &  
+    carPosY - carSize >= pedPosY + pedSize);
+    
+/*Car and pedestrain have not crashed (ie do not intersect)*/
+    Bool didntCrash(Real carPosX, Real pedPosY) <->
+    (carPosX + carSize <= pedPosX - pedSize | 
+    carPosY + carSize <= pedPosY - pedSize | 
+    carPosX - carSize >= pedPosX + pedSize | 
+    carPosY - carSize >= pedPosY + pedSize);
 End.
 
 ProgramVariables
@@ -31,35 +71,28 @@ ProgramVariables
 End.
 
 Problem
-    (B > 0 & carVel > 0 & carPosX = 0 & carPosY = 0 & pedPosX > 0 & pedPosY < 0 
+    (B > 0 & carVel > 0 & carPosX = 0 & carPosY = 0 & 
+    pedPosX > 0 & pedPosY < 0 
     & t = 0 & carSize > 0 & pedSize > 0 &
-    pedVel >= -pedPosY/(CrossTime + EstimatedUncertainty) &
-    pedVel <= -pedPosY/(CrossTime - EstimatedUncertainty) &
-    EstimatedUncertainty < CrossTime & EstimatedUncertainty >= 0 &
-    /*final precondition states that car can either safely continue driving
-    and be past the crosswalk before the pedestrian could enter it or the car
-    could stop fully before the crosswalk*/
-    (carPosX + carVel*(CrossTime - EstimatedUncertainty - ((pedSize + carSize)/pedVel)) > pedPosX + carSize + pedSize| 
-    (1/2)*carVel^2*(1/B) < pedPosX - carSize - pedSize) &
-    carPosX + carSize <= pedPosX - pedSize &  carPosY - carSize >= pedPosY + pedSize)
+    
+    pedVelInBounds(pedPosY) &
+    
+    validEstimatedUncertainty() &
+    
+    (canPassSafely(carVel) | canStop(-B, carVel)) &
+    validStartingPosition(carPosX, pedPosY))
     
     ->
     [
         /*assign a random accleration and check if it is in correct bounds
         and is safe*/
-    
-        {{carAcc := *; ?((-1/2)*carVel^2*(1/carAcc) < pedPosX - carSize - pedSize & carAcc < 0 & carAcc >= -B);}
-        ++ {carAcc := 0; ?(carPosX + carVel*(CrossTime - EstimatedUncertainty - ((pedSize + carSize)/pedVel)) 
-        > pedPosX + carSize + pedSize);}} 
+        {{carAcc := *; ?(canStop(carAcc, carVel) & carAcc < 0 & carAcc >= -B);}
+        ++ {carAcc := 0; ?(canPassSafely(carVel));}} 
         
-        
-     
-   
-        {carPosX' = carVel, carVel' = carAcc, pedPosY' = pedVel, t' = 1 & carVel >= 0}
+        {carPosX' = carVel, carVel' = carAcc, 
+        pedPosY' = pedVel, t' = 1 & carVel >= 0}
     ]
-    /*checks that the car is never at CrossWalkPos at a time where the 
-    pedestrian could be crossing the road*/
-    (carPosX + carSize <= pedPosX - pedSize | carPosY + carSize <= pedPosY - pedSize | carPosX - carSize >= pedPosX + pedSize | carPosY - carSize >= pedPosY + pedSize)
+    didntCrash(carPosX, pedPosY)
     
   
 End.
@@ -67,12 +100,12 @@ End.
 Tactic "Final Project Stopsign 2d with buffer: Proof"
 prop ; <(
   chase('R) ; andR(1) ; <(
-    allR(1) ; prop ; hideL(-14=="carPosX+carVel*(CrossTime()-EstimatedUncertainty()-(pedSize()+carSize())/pedVel())>pedPosX()+carSize()+pedSize()") ; auto,
-    prop ; auto
+    allR(1) ; prop ; expandAllDefs ; hideL(-12=="carVel*(CrossTime()-EstimatedUncertainty()-(pedSize()+carSize())/pedVel())>pedPosX()+carSize()+pedSize()") ; auto,
+    expandAllDefs ; prop ; auto
     ),
   chase('R) ; andR(1) ; <(
-    allR(1) ; auto,
-    prop ; auto
+    allR(1) ; prop ; expandAllDefs ; auto,
+    prop ; expandAllDefs ; auto
     )
   )
 End.
