@@ -13,6 +13,10 @@ from torch.utils.data import DataLoader
 from data_generation import get_dataset, gen_data
 
 def lin_relu(weights):
+    """
+        Helper function to return a neural network composed of alternating Linear
+        and ReLU layers.
+    """
     layers = []
     for i in range(len(weights) - 1):
         layers.append(nn.Linear(weights[i], weights[i+1]))
@@ -44,41 +48,29 @@ class BasicLayer(nn.Module):
         x = nn.functional.dropout(x, p=0.05)
         return x
 
-class Predictor_DropoutMKII(nn.Module):
-    def __init__(self, in_features, out, p=0.0):
-        super(Predictor_DropoutMKII, self).__init__()
-        hidden = [10, 10]
-        self.p = p
-        self.l1 = nn.Linear(in_features, hidden[0])
-        self.r1 = nn.ReLU()
-        self.l2 = nn.Linear(hidden[0], hidden[1])
-        self.r2 = nn.ReLU()
-        self.l3 = nn.Linear(hidden[1], out)
-        self.r3 = nn.ReLU()
-
-    def forward(self, x):
-        x = self.l1.forward(x)
-        x = self.r1.forward(x)
-        x = nn.functional.dropout(x, p=self.p, training=True)
-        x = self.l2.forward(x)
-        x = self.r2.forward(x)
-        x = nn.functional.dropout(x, p=self.p, training=True)
-        x = self.l3.forward(x)
-        x = self.r3.forward(x)
-
-        return x
-
 class Ensemble:
+    """
+        A class to wrap loading and running inference with our ensemble models.
+    """
     def __init__(self, seed):
         self.models = get_ensemble(seed)
 
     def forward(self, x):
+        """
+            Returns the predictions of our ensemble, along with their mean, 
+            median, and standard deviation. Assumes a single sample is passed in.
+        """
         preds = [m(x) for m in self.models]
 
         return preds, np.mean(preds), np.median(preds), np.std(preds)
 
 
 def get_ensemble(seed):
+    """
+        Returns a list of the ensemble models trained on the dataset generated
+        with seed.
+    """
+
     models = []
     weights = [7, 50, 1]
     for i in range(num_ensemble):
@@ -89,6 +81,10 @@ def get_ensemble(seed):
 
 
 def get_model(filename, model_class, params):
+    """
+        A quick helper method to load a model from a saved state dict.
+    """
+
     model = model_class(*params)
     model.load_state_dict(torch.load(filename))
 
@@ -97,8 +93,9 @@ def get_model(filename, model_class, params):
 
 def train_loader(model, dataloader, dataloader_val, epochs=100):
     """
-        Training loop for the provided model on the data. Reports training and validation
-        loss per epoch.
+        Training loop for the provided model on the data. Reports the training 
+        and validation loss per epoch. Trains the model using a Mean Squared Error
+        loss function and the Adam optimizer.
     """
 
     criterion = nn.MSELoss()
@@ -142,6 +139,13 @@ def test_model(model, test_data):
 
             print(inputs, "true label: ", label, "predicted label: ", val)
 
+def convert_sample(x):
+    """
+        Converts tensor to a list of values for later use, converts binary variables
+        to ints.
+    """
+    x = x.numpy()[0]
+    return [x[0]] + [int(x[i]) for i in [1,2,3,4]] + [x[5], + int(x[6])]
 
 def test_uncertainty():
     weights = [7, 50, 1]
@@ -183,7 +187,7 @@ def test_uncertainty():
             dropout_med = np.median(dropout_preds)
             dropout_std = np.std(dropout_preds)
 
-            line = [x.numpy()[0,0]] + [int(x.numpy()[0, i]) for i in [1,2,3,4]] + [x.numpy()[0, 5], + int(x.numpy()[0,6])]
+            line = convert_sample(x)
             
             line.append(y.item())
             line.append(ens_mean)
@@ -197,9 +201,8 @@ def test_uncertainty():
     print(f"avg ensemble std dev {np.mean(np_lines[:, 9]):.3f}")
     print(f"ensemble MSE {np.mean(np_lines[:, 7] - np_lines[:, 8]):.3f}")
     print(f"avg dropout std dev {np.mean(np_lines[:, 10]):.3f}")
-    print(f"dropout MSE {np.mean(np_lines[:, 7] - np_lines[:, 10]):.3f}")
+    print(f"dropout MSE {np.mean(np_lines[:, 7] - np_lines[:, 10]):.3f}\n")
 
-    print()
     percentages = []
     num_sigmas = 5
     print("percentage of predictions within x standard deviations of true answer")
@@ -268,7 +271,6 @@ def make_and_train():
 
     if train_ensemble:
         for i in range(num_ensemble):
-        # for i in [5]:
             model = PredictorMkIII(weights)
 
             # cuda is broken on my machine at the moment

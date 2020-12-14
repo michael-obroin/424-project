@@ -11,7 +11,8 @@ data_dir = os.path.join(os.curdir, "data")
 
 def time_to_cross(stopwalk_dist, direction, speed, red_clothes):
     """
-        Gives time until a pedestrian with these attributes will cross the street
+        Gives time until a pedestrian with these attributes will cross the street.
+        This is the function we want to learn with our neural networks.
     """
     scale = 1
     # epsilon = 0.00001
@@ -57,7 +58,7 @@ def gen_data_linear(num_samples):
     return x_train, y_train
 
 
-def gen_data(num_samples, seed, print_sample=False):
+def gen_data(num_samples, seed=None, print_sample=False):
     """
         Returns a tuple of (data, labels) of our synthetically generated data
     """
@@ -65,7 +66,10 @@ def gen_data(num_samples, seed, print_sample=False):
     label = ["time_to_cross"]
 
     cols = features + label
-    gen = default_rng(seed)
+    if seed:
+        gen = default_rng(seed)
+    else:
+        gen = default_rng()
 
     # in meters, m/s
     max_dist = 3
@@ -117,7 +121,7 @@ def get_dataset(size, regen_data=False, seed=15424):
             x = np.load(os.path.join(data_dir, "x-"+str(size)+"_"+str(seed)+".npy"))
             y = np.load(os.path.join(data_dir, "y-"+str(size)+"_"+str(seed)+".npy"))
         except:
-            print("getting data failed")
+            print("getting data failed, generating new data instead")
             return get_dataset(size, regen_data=True, seed=seed)
 
     return RegData(size, x, y)
