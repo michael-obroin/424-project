@@ -44,7 +44,7 @@ the range [CrossTime - EstimatedUncertainty, CrossTime + EstimatedUncertainty]*/
     
 /*Ensures positive time range*/
     Bool validEstimatedUncertainty() <-> 
-    (EstimatedUncertainty < CrossTime & EstimatedUncertainty >= 0);
+    (EstimatedUncertainty >= 0);
     
 /*Car and pedestrain not intersecting at start and pedestrain starts 
 fully lower and to the right of car*/
@@ -98,14 +98,14 @@ Problem
 End.
 
 Tactic "Final Project Stopsign 2d with buffer: Proof"
-prop ; <(
+expandAllDefs ; prop ; <(
   chase('R) ; andR(1) ; <(
-    allR(1) ; prop ; expandAllDefs ; hideL(-12=="carVel*(CrossTime()-EstimatedUncertainty()-(pedSize()+carSize())/pedVel())>pedPosX()+carSize()+pedSize()") ; auto,
-    expandAllDefs ; prop ; auto
+    allR(1) ; prop ; expandAllDefs ; hideL(-11=="carVel*(CrossTime()-EstimatedUncertainty()-(pedSize()+carSize())/pedVel())>pedPosX()+carSize()+pedSize()") ; auto,
+    prop ; auto
     ),
   chase('R) ; andR(1) ; <(
-    allR(1) ; prop ; expandAllDefs ; auto,
-    prop ; expandAllDefs ; auto
+    allR(1) ; prop ; auto,
+    prop ; auto
     )
   )
 End.
