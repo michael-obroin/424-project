@@ -40,7 +40,8 @@ class BasicLayer(nn.Module):
         self.l = nn.Sequential(
             nn.Linear(7, n),
             nn.ReLU(),
-            nn.Linear(n, 1)
+            nn.Linear(n, 1),
+            nn.ReLU()
         )
 
     def forward(self, x):
@@ -260,11 +261,12 @@ def make_and_train():
 
     weights = [num_features, num_neurons, out]
 
-    train_dropout = False
-    train_ensemble = True
+    train_dropout = True
+    train_ensemble = False
 
     if train_dropout:
         basic = BasicLayer(50)
+        # model = PredictorMkIII(weights)
         print("training dropout")
         train_loader(basic, dataloader, dataloader_val, epochs=dropout_epochs)
         torch.save(basic.state_dict(), f"./models/dropout-{num_neurons}-{train_seed}.pt")
@@ -290,6 +292,6 @@ if __name__ == "__main__":
 
     num_ensemble = 8
 
-    # make_and_train()
-    test_uncertainty()
+    make_and_train()
+    # test_uncertainty()
 
