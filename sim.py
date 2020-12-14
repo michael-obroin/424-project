@@ -115,5 +115,9 @@ class Scene:
         return crash
 
 if __name__ == "__main__":
-    s = Scene()
-    print(s.run())
+    runs = []
+    for i in range(5000):
+        s = Scene()
+        runs.append(int(s.run()))
+
+    print(f"num_crashes = {sum(runs)}")
