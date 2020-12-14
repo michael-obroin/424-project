@@ -1,15 +1,12 @@
-The python code for our data generation as well as miscellaneous helper functions can be found in data_generation.py,
-and the code for training, testing, and evaluating the neural networks on the data is in networks.py.
+Welcome to our 15424 Project!
 
-Our scripts were tested to run on Python version 3.8.6, and the only library necessary to install explicitly is PyTorch.
-To install pytorch, run the following commands below in a terminal in the project directory,
-then use the link https://pytorch.org/get-started/locally/ to select the version compatible with your system.
-We used the pip installation for version 1.7.0 with CUDA 11, seen below
+Before running any of our code, please install pytorch:
+python3 -m pip install torch==1.7.1+cpu torchvision==0.8.2+cpu torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html
 
-python3 -m venv venv
-source ./venv/bin/activate
+To generate data and train and test the neural networks, run python networks.py, making sure that you have a data/ folder in the project directory. Optionally adjust parameters such as num_samples or epochs in the function make_and_train to change the number of samples generated and used for training, or the number of epochs the networks are trained for.
 
-# depends on your system
-python3 -m pip install torch==1.7.0+cu110 torchvision==0.8.1+cu110 torchaudio===0.7.0 -f https://download.pytorch.org/whl/torch_stable.html
+The python code for our data generation as well as miscellaneous helper functions can be found in data_generation.py, and the code for training, testing, and evaluating the neural networks on the data is in networks.py. A basic simulator which utilizes our CPS model can be found in sim.py.
+
+Our code was tested to run in a virtual environment with requirements.txt installed for python 3.8.6.
 
 Teaser image sourced from https://ieeexplore.ieee.org/document/7405073
