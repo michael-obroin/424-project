@@ -272,7 +272,7 @@ def make_and_train():
     weights = [num_features, num_neurons, out]
 
     train_dropout = True
-    train_ensemble = False
+    train_ensemble = True
 
     if train_dropout:
         basic = BasicLayer(50)
@@ -297,5 +297,5 @@ def make_and_train():
 
 if __name__ == "__main__":
     make_and_train()
-    # test_uncertainty()
+    test_uncertainty()
 
