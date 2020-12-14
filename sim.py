@@ -1,8 +1,10 @@
+import random
+
+import torch
+
 from data_generation import time_to_cross
 from data_generation import gen_data
 from networks import Ensemble
-import random
-
 
 
 class Pedestrian:
@@ -26,7 +28,7 @@ class Car:
     def __init__(self, pedestrian, px, py, model=None, initial_vel=5, max_acc=5, max_brake=5, size=1, sigma=4, psize=1):
         self.x, self.y = 0, 0
         self.vel = initial_vel
-        self.model = Ensemble()
+        self.model = Ensemble(15424)
         self.size = size
         self.psize = psize
         self.sigma = sigma
@@ -35,14 +37,14 @@ class Car:
         self.px = px
         self.py = py
         lower_bound, upper_bound = self.make_prediction(pedestrian)
-        control(lower_bound, upper_bound)
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
+        self.control(lower_bound, upper_bound)
     
     def make_prediction(self, pedestrian):
         prediction, mean, median, std = self.model.forward(pedestrian)
-        estimate = prediction[1]
-        uncertainty = prediction[3] * self.sigma
+        estimate = mean
+        uncertainty = std * self.sigma
         lower_bound = estimate - uncertainty
         upper_bound = estimate + uncertainty
         return lower_bound, upper_bound
@@ -51,22 +53,22 @@ class Car:
         braking_boundry = -0.5 * self.vel ** 2 * (1/(self.px - self.size - self.psize))
         acc = None
         if braking_boundry > -self.max_brake:
-            acc = random.randomrange(-self.max_brake, braking_boundry)
-        max_ped_vel = -py/lower_bound
-        worst_case_pos = self.vel*(self.lower_bound - ((psize+size)/max_ped_vel))
-        if worst_case_pos > px + size + psize:
+            acc = random.uniform(-self.max_brake, braking_boundry)
+        max_ped_vel = -self.py/lower_bound
+        worst_case_pos = self.vel*(self.lower_bound - ((self.psize+self.size)/max_ped_vel))
+        if worst_case_pos > self.px + self.size + self.psize:
             test = random.randint(0,1)
             if acc == None:
                 test = 1
             if test == 1:
-                acc = random.randomrange(0, self.max_acc)
+                acc = random.uniform(0, self.max_acc)
 
         if acc == None:
             acc = -self.max_brake
             
         self.acc = acc
 
-    def crash():
+    def crash(self):
         if abs(self.x - self.px) < self.size + self.psize and abs(self.y - self.py) < self.size + self.psize:
             return True
         return False
@@ -75,9 +77,8 @@ class Car:
         done = self.update_pos(dt)
         self.px = px
         self.py = py
-        if not safety_check():
-            self.acc = -self.max_brake
-        if self.x > px + size + psize:
+
+        if self.x > px + self.size + self.psize:
             done = True
         return  done, self.crash()
 
@@ -96,6 +97,8 @@ class Car:
 class Scene:
     def __init__(self, hz=30):
         pedestrian, time_to_cross = gen_data(1)
+        pedestrian = torch.from_numpy(pedestrian)
+        time_to_cross = torch.from_numpy(time_to_cross)
         self.ped = Pedestrian(time_to_cross=time_to_cross)
         self.car = Car(pedestrian=pedestrian, px=10, py=-10)
         self.hz = hz
@@ -106,10 +109,11 @@ class Scene:
         crash = False
         while not done:
             px, py = self.ped.step(dt)
-            done, crash = car.step(dt, px, py)
+            done, crash = self.car.step(dt, px, py)
             if crash:
                 break
         return crash
 
-s = Scene()
-print(s.run())
+if __name__ == "__main__":
+    s = Scene()
+    print(s.run())

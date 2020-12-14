@@ -12,6 +12,13 @@ from torch.utils.data import DataLoader
 
 from data_generation import get_dataset, gen_data
 
+train_seed = 15424
+val_seed = 15624
+test_seed = 15824
+
+num_ensemble = 8
+
+
 def lin_relu(weights):
     """
         Helper function to return a neural network composed of alternating Linear
@@ -61,9 +68,12 @@ class Ensemble:
             Returns the predictions of our ensemble, along with their mean, 
             median, and standard deviation. Assumes a single sample is passed in.
         """
-        preds = [m(x) for m in self.models]
-
-        return preds, np.mean(preds), np.median(preds), np.std(preds)
+        with torch.no_grad():
+            preds = [m(x) for m in self.models]
+            mean = np.mean(preds)
+            med = np.median(preds)
+            std = np.std(preds)
+            return preds, mean, med, std
 
 
 def get_ensemble(seed):
@@ -286,12 +296,6 @@ def make_and_train():
 
 
 if __name__ == "__main__":
-    train_seed = 15424
-    val_seed = 15624
-    test_seed = 15824
-
-    num_ensemble = 8
-
     make_and_train()
     # test_uncertainty()
 
